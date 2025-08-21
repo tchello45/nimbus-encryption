@@ -6,3 +6,23 @@ authors = ["Tilman Kurmayer"]
 
 [dependencies]
 rand = "0.9.2"
+
+[profile.dev]
+# Enhanced debugging for security analysis
+debug = true
+overflow-checks = true
+lto = false
+
+[profile.test]
+# Optimized test profile for security testing
+debug = true
+overflow-checks = true
+lto = false
+
+[profile.release]
+# Security-hardened release profile
+debug = false
+overflow-checks = true
+lto = true
+codegen-units = 1
+strip = true
