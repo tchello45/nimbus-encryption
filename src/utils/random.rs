@@ -11,10 +11,7 @@ pub const NONCE_192_BIT_SIZE: usize = 24; // 192 bits = 24 bytes
 pub trait SecureRandomSource {
     type Error;
 
-    /// Fill the destination buffer with cryptographically secure random bytes.
     fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), Self::Error>;
-
-    /// Generate a cryptographically secure random u64 value.
     fn try_next_u64(&mut self) -> Result<u64, Self::Error>;
 }
 
@@ -30,7 +27,6 @@ impl SecureRandomSource for OsRng {
     }
 }
 
-/// Generate a vector of cryptographically secure random bytes using the provided RNG.
 fn secure_random_bytes<R: SecureRandomSource>(
     rng: &mut R,
     byte_count: usize,
@@ -41,32 +37,27 @@ fn secure_random_bytes<R: SecureRandomSource>(
     Ok(buffer)
 }
 
-/// Generate a cryptographically secure random u64 value using the provided RNG.
 fn secure_random_u64<R: SecureRandomSource>(rng: &mut R) -> NimbusResult<u64> {
     rng.try_next_u64()
         .map_err(|_| NimbusError::RandomGenerationFailed)
 }
 
-/// Generate a nonce of the specified size using the OS random number generator.
 fn generate_nonce(byte_count: usize) -> NimbusResult<Vec<u8>> {
     let mut rng = OsRng;
     secure_random_bytes(&mut rng, byte_count)
 }
 
-/// Generate a 96-bit (12-byte) nonce suitable for AES-GCM and similar algorithms.
-/// This is the standard nonce size for most AEAD ciphers.
+/// Generate a 96-bit nonce suitable for AES-GCM and similar AEAD ciphers.
 pub fn generate_aes_gcm_nonce() -> NimbusResult<Vec<u8>> {
     generate_nonce(NONCE_96_BIT_SIZE)
 }
 
-/// Generate a 192-bit (24-byte) nonce suitable for XChaCha20-Poly1305
-/// This provides additional security margin for high-throughput scenarios.
+/// Generate a 192-bit nonce suitable for XChaCha20-Poly1305.
 pub fn generate_extended_nonce() -> NimbusResult<Vec<u8>> {
     generate_nonce(NONCE_192_BIT_SIZE)
 }
 
 /// Generate a cryptographically secure random u64 value.
-/// Useful for generating random identifiers, seeds, or other numeric values.
 pub fn generate_random_u64() -> NimbusResult<u64> {
     let mut rng = OsRng;
     secure_random_u64(&mut rng)
@@ -77,7 +68,6 @@ mod tests {
     use super::*;
     use std::io::Error as IoError;
 
-    /// Mock random source for testing that can be configured to fail
     struct MockRandomSource {
         bytes_should_fail: bool,
         u64_should_fail: bool,
@@ -178,15 +168,14 @@ mod tests {
 
     #[test]
     fn nonce_constants_have_correct_values() {
-        assert_eq!(NONCE_96_BIT_SIZE, 12); // 96 bits = 12 bytes
-        assert_eq!(NONCE_192_BIT_SIZE, 24); // 192 bits = 24 bytes
+        assert_eq!(NONCE_96_BIT_SIZE, 12);
+        assert_eq!(NONCE_192_BIT_SIZE, 24);
     }
 
     #[test]
     fn generated_nonces_are_different() {
         let nonce1 = generate_aes_gcm_nonce().unwrap();
         let nonce2 = generate_aes_gcm_nonce().unwrap();
-        // With cryptographically secure randomness, the probability of collision is negligible
         assert_ne!(nonce1, nonce2);
     }
 }
