@@ -100,7 +100,7 @@ cargo nextest run --release         # Performance validation
 git log --show-signature -5         # Check commit signatures
 cargo audit                         # Security audit
 cargo vet                          # Supply chain verification
-clippy --all-targets --all-features -- -D clippy::pedantic -D unsafe_code # Linting
+cargo clippy --all-targets --all-features -- -D clippy::pedantic # Linting
 cargo nextest run                   # Run all tests
 ```
 
