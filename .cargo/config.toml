@@ -1,0 +1,16 @@
+[alias]
+sec-check = "clippy --all-targets --all-features -- -D clippy::pedantic"
+sec-test = "nextest run --all-features"
+sec-test-release = "nextest run --all-features --release"
+
+sec-cov = "llvm-cov nextest"
+sec-cov-html = "llvm-cov nextest --html --open"
+
+build-secure = "build --release --locked"
+
+deps-audit = "audit"
+deps-vet = "vet"
+deps-update = "update --locked"
+deps-check = "outdated"
+
+doc-open = "doc --all-features --open"
