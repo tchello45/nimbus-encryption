@@ -2,7 +2,7 @@ use crate::error::{NimbusError, NimbusResult};
 use rand::TryRngCore;
 use rand::rngs::OsRng;
 
-trait RandomNumberGenerator {
+pub trait RandomNumberGenerator {
     type Error;
     fn generate_nonce_92bit(&mut self) -> NimbusResult<Vec<u8>>;
     fn generate_nonce_192bit(&mut self) -> NimbusResult<Vec<u8>>;
@@ -30,5 +30,31 @@ impl RandomNumberGenerator for OsRng {
             .try_next_u64()
             .map_err(|_| NimbusError::RandomGenerationFailed)?;
         Ok(random_u64)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_generate_nonce_92bit() {
+        let mut rng = OsRng;
+        let nonce = rng.generate_nonce_92bit().unwrap();
+        assert_eq!(nonce.len(), 12);
+    }
+
+    #[test]
+    fn test_generate_nonce_192bit() {
+        let mut rng = OsRng;
+        let nonce = rng.generate_nonce_192bit().unwrap();
+        assert_eq!(nonce.len(), 24);
+    }
+
+    #[test]
+    fn test_generate_random_u64() {
+        let mut rng = OsRng;
+        let random_u64 = rng.generate_random_u64().unwrap();
+        assert!(random_u64 < u64::MAX);
     }
 }
