@@ -2,6 +2,7 @@
 name = "nimbus-encryption"
 version = "0.1.0"
 edition = "2024"
+authors = ["Tilman Kurmayer"]
 
 [dependencies]
 rand = "0.9.2"
