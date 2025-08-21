@@ -2,13 +2,23 @@ use crate::error::{NimbusError, NimbusResult};
 use rand::TryRngCore;
 use rand::rngs::OsRng;
 
-pub trait RngProvider {
+/// Standard nonce sizes in bytes for common cryptographic operations
+pub const NONCE_96_BIT_SIZE: usize = 12; // 96 bits = 12 bytes
+pub const NONCE_192_BIT_SIZE: usize = 24; // 192 bits = 24 bytes
+
+/// A trait for secure random number generators that can fail gracefully.
+/// This abstraction allows for easy testing and potential future RNG implementations.
+pub trait SecureRandomSource {
     type Error;
+
+    /// Fill the destination buffer with cryptographically secure random bytes.
     fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), Self::Error>;
+
+    /// Generate a cryptographically secure random u64 value.
     fn try_next_u64(&mut self) -> Result<u64, Self::Error>;
 }
 
-impl RngProvider for OsRng {
+impl SecureRandomSource for OsRng {
     type Error = <OsRng as TryRngCore>::Error;
 
     fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), Self::Error> {
@@ -20,31 +30,46 @@ impl RngProvider for OsRng {
     }
 }
 
-fn generate_bytes_generic<R: RngProvider>(rng: &mut R, size: usize) -> NimbusResult<Vec<u8>> {
-    let mut bytes = vec![0u8; size];
-    rng.try_fill_bytes(&mut bytes)
+/// Generate a vector of cryptographically secure random bytes using the provided RNG.
+fn secure_random_bytes<R: SecureRandomSource>(
+    rng: &mut R,
+    byte_count: usize,
+) -> NimbusResult<Vec<u8>> {
+    let mut buffer = vec![0u8; byte_count];
+    rng.try_fill_bytes(&mut buffer)
         .map_err(|_| NimbusError::RandomGenerationFailed)?;
-    Ok(bytes)
+    Ok(buffer)
 }
 
-fn generate_u64_generic<R: RngProvider>(rng: &mut R) -> NimbusResult<u64> {
+/// Generate a cryptographically secure random u64 value using the provided RNG.
+fn secure_random_u64<R: SecureRandomSource>(rng: &mut R) -> NimbusResult<u64> {
     rng.try_next_u64()
         .map_err(|_| NimbusError::RandomGenerationFailed)
 }
 
-pub fn generate_nonce_92bit() -> NimbusResult<Vec<u8>> {
+/// Generate a nonce of the specified size using the OS random number generator.
+fn generate_nonce(byte_count: usize) -> NimbusResult<Vec<u8>> {
     let mut rng = OsRng;
-    generate_bytes_generic(&mut rng, 12)
+    secure_random_bytes(&mut rng, byte_count)
 }
 
-pub fn generate_nonce_192bit() -> NimbusResult<Vec<u8>> {
-    let mut rng = OsRng;
-    generate_bytes_generic(&mut rng, 24)
+/// Generate a 96-bit (12-byte) nonce suitable for AES-GCM and similar algorithms.
+/// This is the standard nonce size for most AEAD ciphers.
+pub fn generate_aes_gcm_nonce() -> NimbusResult<Vec<u8>> {
+    generate_nonce(NONCE_96_BIT_SIZE)
 }
 
-pub fn generate_u64() -> NimbusResult<u64> {
+/// Generate a 192-bit (24-byte) nonce suitable for XChaCha20-Poly1305
+/// This provides additional security margin for high-throughput scenarios.
+pub fn generate_extended_nonce() -> NimbusResult<Vec<u8>> {
+    generate_nonce(NONCE_192_BIT_SIZE)
+}
+
+/// Generate a cryptographically secure random u64 value.
+/// Useful for generating random identifiers, seeds, or other numeric values.
+pub fn generate_random_u64() -> NimbusResult<u64> {
     let mut rng = OsRng;
-    generate_u64_generic(&mut rng)
+    secure_random_u64(&mut rng)
 }
 
 #[cfg(test)]
@@ -52,17 +77,45 @@ mod tests {
     use super::*;
     use std::io::Error as IoError;
 
-    struct MockRng {
-        fill_should_fail: bool,
+    /// Mock random source for testing that can be configured to fail
+    struct MockRandomSource {
+        bytes_should_fail: bool,
         u64_should_fail: bool,
+        test_value: u64,
     }
 
-    impl RngProvider for MockRng {
+    impl MockRandomSource {
+        fn new_success() -> Self {
+            Self {
+                bytes_should_fail: false,
+                u64_should_fail: false,
+                test_value: 42,
+            }
+        }
+
+        fn new_bytes_failure() -> Self {
+            Self {
+                bytes_should_fail: true,
+                u64_should_fail: false,
+                test_value: 42,
+            }
+        }
+
+        fn new_u64_failure() -> Self {
+            Self {
+                bytes_should_fail: false,
+                u64_should_fail: true,
+                test_value: 42,
+            }
+        }
+    }
+
+    impl SecureRandomSource for MockRandomSource {
         type Error = IoError;
 
         fn try_fill_bytes(&mut self, _dest: &mut [u8]) -> Result<(), Self::Error> {
-            if self.fill_should_fail {
-                Err(IoError::other("Mock fill error"))
+            if self.bytes_should_fail {
+                Err(IoError::other("Mock random bytes generation failed"))
             } else {
                 Ok(())
             }
@@ -70,68 +123,70 @@ mod tests {
 
         fn try_next_u64(&mut self) -> Result<u64, Self::Error> {
             if self.u64_should_fail {
-                Err(IoError::other("Mock u64 error"))
+                Err(IoError::other("Mock u64 generation failed"))
             } else {
-                Ok(42)
+                Ok(self.test_value)
             }
         }
     }
 
     #[test]
-    fn test_bytes_generic_success() {
-        let mut mock = MockRng {
-            fill_should_fail: false,
-            u64_should_fail: false,
-        };
-        let result = generate_bytes_generic(&mut mock, 12);
+    fn secure_random_bytes_generates_correct_length() {
+        let mut mock = MockRandomSource::new_success();
+        let result = secure_random_bytes(&mut mock, 12);
         assert_eq!(result.unwrap().len(), 12);
     }
 
     #[test]
-    fn test_bytes_generic_failure() {
-        let mut mock = MockRng {
-            fill_should_fail: true,
-            u64_should_fail: false,
-        };
-        let result = generate_bytes_generic(&mut mock, 12);
+    fn secure_random_bytes_handles_rng_failure() {
+        let mut mock = MockRandomSource::new_bytes_failure();
+        let result = secure_random_bytes(&mut mock, 12);
         assert_eq!(result.unwrap_err(), NimbusError::RandomGenerationFailed);
     }
 
     #[test]
-    fn test_u64_generic_success() {
-        let mut mock = MockRng {
-            fill_should_fail: false,
-            u64_should_fail: false,
-        };
-        let result = generate_u64_generic(&mut mock);
+    fn secure_random_u64_returns_expected_value() {
+        let mut mock = MockRandomSource::new_success();
+        let result = secure_random_u64(&mut mock);
         assert_eq!(result.unwrap(), 42);
     }
 
     #[test]
-    fn test_u64_generic_failure() {
-        let mut mock = MockRng {
-            fill_should_fail: false,
-            u64_should_fail: true,
-        };
-        let result = generate_u64_generic(&mut mock);
+    fn secure_random_u64_handles_rng_failure() {
+        let mut mock = MockRandomSource::new_u64_failure();
+        let result = secure_random_u64(&mut mock);
         assert_eq!(result.unwrap_err(), NimbusError::RandomGenerationFailed);
     }
 
     #[test]
-    fn test_nonce_92bit() {
-        let result = generate_nonce_92bit();
-        assert_eq!(result.unwrap().len(), 12);
+    fn aes_gcm_nonce_has_correct_size() {
+        let result = generate_aes_gcm_nonce();
+        assert_eq!(result.unwrap().len(), NONCE_96_BIT_SIZE);
     }
 
     #[test]
-    fn test_nonce_192bit() {
-        let result = generate_nonce_192bit();
-        assert_eq!(result.unwrap().len(), 24);
+    fn extended_nonce_has_correct_size() {
+        let result = generate_extended_nonce();
+        assert_eq!(result.unwrap().len(), NONCE_192_BIT_SIZE);
     }
 
     #[test]
-    fn test_u64() {
-        let result = generate_u64();
+    fn random_u64_generation_succeeds() {
+        let result = generate_random_u64();
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn nonce_constants_have_correct_values() {
+        assert_eq!(NONCE_96_BIT_SIZE, 12); // 96 bits = 12 bytes
+        assert_eq!(NONCE_192_BIT_SIZE, 24); // 192 bits = 24 bytes
+    }
+
+    #[test]
+    fn generated_nonces_are_different() {
+        let nonce1 = generate_aes_gcm_nonce().unwrap();
+        let nonce2 = generate_aes_gcm_nonce().unwrap();
+        // With cryptographically secure randomness, the probability of collision is negligible
+        assert_ne!(nonce1, nonce2);
     }
 }
