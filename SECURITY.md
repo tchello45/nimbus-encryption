@@ -66,12 +66,12 @@ We use `cargo nextest` for enhanced testing capabilities:
 
 ```bash
 # Install testing tools
-cargo install cargo-nextest cargo-llvm-cov --locked
+cargo install cargo-nextest cargo-llvm-cov cargo-audit cargo-vet --locked
 
 # Security test commands
-cargo nextest run                    # All tests
-cargo llvm-cov nextest              # With coverage
-cargo nextest run --release         # Performance validation
+cargo sec-test                      # All tests
+cargo sec-cov                       # With coverage
+cargo sec-test-release              # Performance validation
 ```
 
 ### Test Requirements
@@ -98,10 +98,10 @@ cargo nextest run --release         # Performance validation
 ```bash
 # Verify security requirements
 git log --show-signature -5         # Check commit signatures
-cargo audit                         # Security audit
-cargo vet                          # Supply chain verification
-cargo clippy --all-targets --all-features -- -D clippy::pedantic # Linting
-cargo nextest run                   # Run all tests
+cargo deps-audit                    # Security audit
+cargo deps-vet                      # Supply chain verification
+cargo sec-check                     # Linting
+cargo sec-test                      # Run all tests
 ```
 
 ## Cryptographic Standards

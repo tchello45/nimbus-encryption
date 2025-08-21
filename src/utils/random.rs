@@ -11,7 +11,20 @@ pub const NONCE_192_BIT_SIZE: usize = 24; // 192 bits = 24 bytes
 pub trait SecureRandomSource {
     type Error;
 
+    /// Fills the given buffer with cryptographically secure random bytes.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying random number generator fails to produce
+    /// secure random data or if the system's entropy source is unavailable.
     fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), Self::Error>;
+
+    /// Generates a cryptographically secure random u64 value.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the underlying random number generator fails to produce
+    /// secure random data or if the system's entropy source is unavailable.
     fn try_next_u64(&mut self) -> Result<u64, Self::Error>;
 }
 
@@ -48,16 +61,31 @@ fn generate_nonce(byte_count: usize) -> NimbusResult<Vec<u8>> {
 }
 
 /// Generate a 96-bit nonce suitable for AES-GCM and similar AEAD ciphers.
+///
+/// # Errors
+///
+/// Returns [`NimbusError::RandomGenerationFailed`] if the system's secure random
+/// number generator fails to produce cryptographically secure random data.
 pub fn generate_aes_gcm_nonce() -> NimbusResult<Vec<u8>> {
     generate_nonce(NONCE_96_BIT_SIZE)
 }
 
 /// Generate a 192-bit nonce suitable for XChaCha20-Poly1305.
+///
+/// # Errors
+///
+/// Returns [`NimbusError::RandomGenerationFailed`] if the system's secure random
+/// number generator fails to produce cryptographically secure random data.
 pub fn generate_extended_nonce() -> NimbusResult<Vec<u8>> {
     generate_nonce(NONCE_192_BIT_SIZE)
 }
 
 /// Generate a cryptographically secure random u64 value.
+///
+/// # Errors
+///
+/// Returns [`NimbusError::RandomGenerationFailed`] if the system's secure random
+/// number generator fails to produce cryptographically secure random data.
 pub fn generate_random_u64() -> NimbusResult<u64> {
     let mut rng = OsRng;
     secure_random_u64(&mut rng)
