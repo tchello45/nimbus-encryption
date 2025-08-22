@@ -1,9 +1,9 @@
 use crate::error::{NimbusError, NimbusResult};
 use base64ct::{Base64, Encoding};
 
-pub const MAX_BASE64_INPUT_SIZE: usize = usize::MAX / 4;
+pub const BASE64_MAX_INPUT_SIZE: usize = usize::MAX / 4;
 
-pub trait SecureEncodingProvider {
+pub trait Encoder {
     type Error;
 
     fn encode(&self, data: &[u8]) -> Result<String, Self::Error>;
@@ -13,12 +13,12 @@ pub trait SecureEncodingProvider {
     fn max_input_size(&self) -> usize;
 }
 
-impl SecureEncodingProvider for Base64 {
+impl Encoder for Base64 {
     type Error = NimbusError;
 
     fn encode(&self, data: &[u8]) -> Result<String, Self::Error> {
         if data.len() > self.max_input_size() {
-            return Err(NimbusError::InvalidInput);
+            return Err(NimbusError::InvalidLength);
         }
         Ok(Base64::encode_string(data))
     }
@@ -28,22 +28,22 @@ impl SecureEncodingProvider for Base64 {
     }
 
     fn max_input_size(&self) -> usize {
-        MAX_BASE64_INPUT_SIZE
+        BASE64_MAX_INPUT_SIZE
     }
 }
 
-fn secure_encode<E: SecureEncodingProvider>(provider: &E, data: &[u8]) -> NimbusResult<String> {
-    provider.encode(data).map_err(|_| NimbusError::InvalidInput)
+fn encode_with<E: Encoder>(encoder: &E, data: &[u8]) -> NimbusResult<String> {
+    encoder.encode(data).map_err(|_| NimbusError::InvalidInput)
 }
 
-fn secure_decode<E: SecureEncodingProvider>(provider: &E, data: &str) -> NimbusResult<Vec<u8>> {
-    provider.decode(data).map_err(|_| NimbusError::InvalidInput)
+fn decode_with<E: Encoder>(encoder: &E, data: &str) -> NimbusResult<Vec<u8>> {
+    encoder.decode(data).map_err(|_| NimbusError::InvalidInput)
 }
 
 pub fn encode_base64(data: &[u8]) -> NimbusResult<String> {
-    secure_encode(&Base64, data)
+    encode_with(&Base64, data)
 }
 
 pub fn decode_base64(data: &str) -> NimbusResult<Vec<u8>> {
-    secure_decode(&Base64, data)
+    decode_with(&Base64, data)
 }
