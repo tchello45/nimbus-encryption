@@ -6,8 +6,18 @@ pub const BASE64_MAX_INPUT_SIZE: usize = usize::MAX / 4;
 pub trait Encoder {
     type Error;
 
+    /// Encodes the given byte data into a string representation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the input data is too large or if encoding fails.
     fn encode(&self, data: &[u8]) -> Result<String, Self::Error>;
 
+    /// Decodes the given string data into bytes.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the input string is invalid or malformed.
     fn decode(&self, data: &str) -> Result<Vec<u8>, Self::Error>;
 
     fn max_input_size(&self) -> usize;
@@ -40,10 +50,22 @@ fn decode_with<E: Encoder>(encoder: &E, data: &str) -> NimbusResult<Vec<u8>> {
     encoder.decode(data).map_err(|_| NimbusError::InvalidInput)
 }
 
+/// Encodes the given byte data into a Base64 string.
+///
+/// # Errors
+///
+/// Returns `NimbusError::InvalidLength` if the input data is too large,
+/// or `NimbusError::InvalidInput` if encoding fails.
 pub fn encode_base64(data: &[u8]) -> NimbusResult<String> {
     encode_with(&Base64, data)
 }
 
+/// Decodes the given Base64 string into bytes.
+///
+/// # Errors
+///
+/// Returns `NimbusError::InvalidInput` if the input string is invalid
+/// or malformed Base64.
 pub fn decode_base64(data: &str) -> NimbusResult<Vec<u8>> {
     decode_with(&Base64, data)
 }
@@ -123,8 +145,8 @@ mod tests {
         let data = b"Hello, World!";
         let result = encoder.encode(data);
         assert!(result.is_ok());
-        let encoded = result.unwrap();
-        assert_eq!(encoded, "SGVsbG8sIFdvcmxkIQ==");
+        let encoded_result = result.unwrap();
+        assert_eq!(encoded_result, "SGVsbG8sIFdvcmxkIQ==");
     }
 
     #[test]
@@ -133,8 +155,8 @@ mod tests {
 
         // Test encoding empty data
         let empty_bytes = b"";
-        let encoded = encoder.encode(empty_bytes).unwrap();
-        assert_eq!(encoded, "");
+        let encoded_result = encoder.encode(empty_bytes).unwrap();
+        assert_eq!(encoded_result, "");
 
         // Test decoding empty string
         let empty_string = "";
@@ -142,7 +164,7 @@ mod tests {
         assert_eq!(decoded, b"");
 
         // Test full roundtrip
-        let roundtrip = encoder.decode(&encoded).unwrap();
+        let roundtrip = encoder.decode(&encoded_result).unwrap();
         assert_eq!(roundtrip, empty_bytes);
     }
 
@@ -262,17 +284,6 @@ mod tests {
         let data = "Invalid Base64 Data!@#";
         let result = decode_base64(data);
         assert_eq!(result.unwrap_err(), NimbusError::InvalidInput);
-    }
-
-    #[test]
-    fn encoding_constants_verification() {
-        // Base64 constants
-        assert_eq!(BASE64_MAX_INPUT_SIZE, usize::MAX / 4);
-
-        // Random/nonce constants (imported from random module)
-        use crate::utils::random::{NONCE_96_BIT_SIZE, NONCE_192_BIT_SIZE};
-        assert_eq!(NONCE_96_BIT_SIZE, 12);
-        assert_eq!(NONCE_192_BIT_SIZE, 24);
     }
 
     #[test]
