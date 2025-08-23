@@ -128,13 +128,22 @@ mod tests {
     }
 
     #[test]
-    fn base64_encoder_encode_empty_data() {
+    fn base64_encoder_empty_data_roundtrip() {
         let encoder = Base64;
-        let data = b"";
-        let result = encoder.encode(data);
-        assert!(result.is_ok());
-        let encoded = result.unwrap();
+
+        // Test encoding empty data
+        let empty_bytes = b"";
+        let encoded = encoder.encode(empty_bytes).unwrap();
         assert_eq!(encoded, "");
+
+        // Test decoding empty string
+        let empty_string = "";
+        let decoded = encoder.decode(empty_string).unwrap();
+        assert_eq!(decoded, b"");
+
+        // Test full roundtrip
+        let roundtrip = encoder.decode(&encoded).unwrap();
+        assert_eq!(roundtrip, empty_bytes);
     }
 
     #[test]
@@ -155,16 +164,6 @@ mod tests {
         assert!(result.is_ok());
         let decoded = result.unwrap();
         assert_eq!(decoded, b"Hello, World!");
-    }
-
-    #[test]
-    fn base64_encoder_decode_empty_string() {
-        let encoder = Base64;
-        let data = "";
-        let result = encoder.decode(data);
-        assert!(result.is_ok());
-        let decoded = result.unwrap();
-        assert_eq!(decoded, b"");
     }
 
     #[test]
@@ -233,12 +232,20 @@ mod tests {
     }
 
     #[test]
-    fn encode_base64_empty_data() {
-        let data = b"";
-        let result = encode_base64(data);
-        assert!(result.is_ok());
-        let encoded = result.unwrap();
+    fn base64_api_empty_data_roundtrip() {
+        // Test encoding empty data
+        let empty_bytes = b"";
+        let encoded = encode_base64(empty_bytes).unwrap();
         assert_eq!(encoded, "");
+
+        // Test decoding empty string
+        let empty_string = "";
+        let decoded = decode_base64(empty_string).unwrap();
+        assert_eq!(decoded, b"");
+
+        // Test full roundtrip
+        let roundtrip = decode_base64(&encoded).unwrap();
+        assert_eq!(roundtrip, empty_bytes);
     }
 
     #[test]
@@ -251,15 +258,6 @@ mod tests {
     }
 
     #[test]
-    fn decode_base64_empty_string() {
-        let data = "";
-        let result = decode_base64(data);
-        assert!(result.is_ok());
-        let decoded = result.unwrap();
-        assert_eq!(decoded, b"");
-    }
-
-    #[test]
     fn decode_base64_invalid_input() {
         let data = "Invalid Base64 Data!@#";
         let result = decode_base64(data);
@@ -267,41 +265,42 @@ mod tests {
     }
 
     #[test]
-    fn base64_max_input_size_constant() {
+    fn encoding_constants_verification() {
+        // Base64 constants
         assert_eq!(BASE64_MAX_INPUT_SIZE, usize::MAX / 4);
+
+        // Random/nonce constants (imported from random module)
+        use crate::utils::random::{NONCE_96_BIT_SIZE, NONCE_192_BIT_SIZE};
+        assert_eq!(NONCE_96_BIT_SIZE, 12);
+        assert_eq!(NONCE_192_BIT_SIZE, 24);
     }
 
     #[test]
-    fn mock_encoder_success_behavior() {
-        let mock = MockEncoder::new_success();
-        assert!(!mock.input_too_large);
-        assert!(!mock.decode_failure);
-        assert!(!mock.encode_failure);
-        assert_eq!(mock.max_input_size(), usize::MAX);
-    }
+    fn mock_encoder_behavior_configurations() {
+        // Test success configuration
+        let success_mock = MockEncoder::new_success();
+        assert!(!success_mock.input_too_large);
+        assert!(!success_mock.decode_failure);
+        assert!(!success_mock.encode_failure);
+        assert_eq!(success_mock.max_input_size(), usize::MAX);
 
-    #[test]
-    fn mock_encoder_input_too_large_behavior() {
-        let mock = MockEncoder::new_input_too_large();
-        assert!(mock.input_too_large);
-        assert!(!mock.decode_failure);
-        assert!(!mock.encode_failure);
-    }
+        // Test input too large configuration
+        let large_input_mock = MockEncoder::new_input_too_large();
+        assert!(large_input_mock.input_too_large);
+        assert!(!large_input_mock.decode_failure);
+        assert!(!large_input_mock.encode_failure);
 
-    #[test]
-    fn mock_encoder_decode_failure_behavior() {
-        let mock = MockEncoder::new_decode_failure();
-        assert!(!mock.input_too_large);
-        assert!(mock.decode_failure);
-        assert!(!mock.encode_failure);
-    }
+        // Test decode failure configuration
+        let decode_fail_mock = MockEncoder::new_decode_failure();
+        assert!(!decode_fail_mock.input_too_large);
+        assert!(decode_fail_mock.decode_failure);
+        assert!(!decode_fail_mock.encode_failure);
 
-    #[test]
-    fn mock_encoder_encode_failure_behavior() {
-        let mock = MockEncoder::new_encode_failure();
-        assert!(!mock.input_too_large);
-        assert!(!mock.decode_failure);
-        assert!(mock.encode_failure);
+        // Test encode failure configuration
+        let encode_fail_mock = MockEncoder::new_encode_failure();
+        assert!(!encode_fail_mock.input_too_large);
+        assert!(!encode_fail_mock.decode_failure);
+        assert!(encode_fail_mock.encode_failure);
     }
 
     #[test]
