@@ -2,6 +2,7 @@
     "conventionalCommits.scopes": [
         "general",
         "security",
-        "utils"
+        "utils",
+        "crypto"
     ]
 }
