@@ -47,3 +47,276 @@ pub fn encode_base64(data: &[u8]) -> NimbusResult<String> {
 pub fn decode_base64(data: &str) -> NimbusResult<Vec<u8>> {
     decode_with(&Base64, data)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct MockEncoder {
+        input_too_large: bool,
+        decode_failure: bool,
+        encode_failure: bool,
+    }
+
+    impl MockEncoder {
+        fn new_success() -> Self {
+            Self {
+                input_too_large: false,
+                decode_failure: false,
+                encode_failure: false,
+            }
+        }
+
+        fn new_input_too_large() -> Self {
+            Self {
+                input_too_large: true,
+                decode_failure: false,
+                encode_failure: false,
+            }
+        }
+
+        fn new_decode_failure() -> Self {
+            Self {
+                input_too_large: false,
+                decode_failure: true,
+                encode_failure: false,
+            }
+        }
+
+        fn new_encode_failure() -> Self {
+            Self {
+                input_too_large: false,
+                decode_failure: false,
+                encode_failure: true,
+            }
+        }
+    }
+
+    impl Encoder for MockEncoder {
+        type Error = NimbusError;
+
+        fn encode(&self, _data: &[u8]) -> Result<String, Self::Error> {
+            if self.input_too_large {
+                return Err(NimbusError::InvalidLength);
+            }
+            if self.encode_failure {
+                return Err(NimbusError::InvalidInput);
+            }
+            Ok(String::from("test"))
+        }
+
+        fn decode(&self, _data: &str) -> Result<Vec<u8>, Self::Error> {
+            if self.decode_failure {
+                return Err(NimbusError::InvalidInput);
+            }
+            Ok(b"test".to_vec())
+        }
+
+        fn max_input_size(&self) -> usize {
+            usize::MAX
+        }
+    }
+
+    #[test]
+    fn base64_encoder_encode_success() {
+        let encoder = Base64;
+        let data = b"Hello, World!";
+        let result = encoder.encode(data);
+        assert!(result.is_ok());
+        let encoded = result.unwrap();
+        assert_eq!(encoded, "SGVsbG8sIFdvcmxkIQ==");
+    }
+
+    #[test]
+    fn base64_encoder_encode_empty_data() {
+        let encoder = Base64;
+        let data = b"";
+        let result = encoder.encode(data);
+        assert!(result.is_ok());
+        let encoded = result.unwrap();
+        assert_eq!(encoded, "");
+    }
+
+    #[test]
+    fn base64_encoder_encode_input_too_large() {
+        // We can't actually allocate usize::MAX/4 + 1 bytes in memory,
+        // but we can test the logic by using a mock encoder that simulates this condition
+        let mock = MockEncoder::new_input_too_large();
+        let data = b"test data";
+        let result = mock.encode(data);
+        assert_eq!(result.unwrap_err(), NimbusError::InvalidLength);
+    }
+
+    #[test]
+    fn base64_encoder_decode_success() {
+        let encoder = Base64;
+        let data = "SGVsbG8sIFdvcmxkIQ==";
+        let result = encoder.decode(data);
+        assert!(result.is_ok());
+        let decoded = result.unwrap();
+        assert_eq!(decoded, b"Hello, World!");
+    }
+
+    #[test]
+    fn base64_encoder_decode_empty_string() {
+        let encoder = Base64;
+        let data = "";
+        let result = encoder.decode(data);
+        assert!(result.is_ok());
+        let decoded = result.unwrap();
+        assert_eq!(decoded, b"");
+    }
+
+    #[test]
+    fn base64_encoder_decode_invalid_input() {
+        let encoder = Base64;
+        let data = "Invalid Base64!@#$%";
+        let result = encoder.decode(data);
+        assert_eq!(result.unwrap_err(), NimbusError::InvalidInput);
+    }
+
+    #[test]
+    fn base64_encoder_max_input_size() {
+        let encoder = Base64;
+        assert_eq!(encoder.max_input_size(), BASE64_MAX_INPUT_SIZE);
+    }
+
+    #[test]
+    fn encode_with_success() {
+        let mock = MockEncoder::new_success();
+        let data = b"test data";
+        let result = encode_with(&mock, data);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "test");
+    }
+
+    #[test]
+    fn encode_with_input_too_large() {
+        let mock = MockEncoder::new_input_too_large();
+        let data = b"test data";
+        let result = encode_with(&mock, data);
+        assert_eq!(result.unwrap_err(), NimbusError::InvalidInput);
+    }
+
+    #[test]
+    fn encode_with_encode_failure() {
+        let mock = MockEncoder::new_encode_failure();
+        let data = b"test data";
+        let result = encode_with(&mock, data);
+        assert_eq!(result.unwrap_err(), NimbusError::InvalidInput);
+    }
+
+    #[test]
+    fn decode_with_success() {
+        let mock = MockEncoder::new_success();
+        let data = "test data";
+        let result = decode_with(&mock, data);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), b"test");
+    }
+
+    #[test]
+    fn decode_with_failure() {
+        let mock = MockEncoder::new_decode_failure();
+        let data = "test data";
+        let result = decode_with(&mock, data);
+        assert_eq!(result.unwrap_err(), NimbusError::InvalidInput);
+    }
+
+    #[test]
+    fn encode_base64_success() {
+        let data = b"Hello, Base64!";
+        let result = encode_base64(data);
+        assert!(result.is_ok());
+        let encoded = result.unwrap();
+        assert_eq!(encoded, "SGVsbG8sIEJhc2U2NCE=");
+    }
+
+    #[test]
+    fn encode_base64_empty_data() {
+        let data = b"";
+        let result = encode_base64(data);
+        assert!(result.is_ok());
+        let encoded = result.unwrap();
+        assert_eq!(encoded, "");
+    }
+
+    #[test]
+    fn decode_base64_success() {
+        let data = "SGVsbG8sIEJhc2U2NCE=";
+        let result = decode_base64(data);
+        assert!(result.is_ok());
+        let decoded = result.unwrap();
+        assert_eq!(decoded, b"Hello, Base64!");
+    }
+
+    #[test]
+    fn decode_base64_empty_string() {
+        let data = "";
+        let result = decode_base64(data);
+        assert!(result.is_ok());
+        let decoded = result.unwrap();
+        assert_eq!(decoded, b"");
+    }
+
+    #[test]
+    fn decode_base64_invalid_input() {
+        let data = "Invalid Base64 Data!@#";
+        let result = decode_base64(data);
+        assert_eq!(result.unwrap_err(), NimbusError::InvalidInput);
+    }
+
+    #[test]
+    fn base64_max_input_size_constant() {
+        assert_eq!(BASE64_MAX_INPUT_SIZE, usize::MAX / 4);
+    }
+
+    #[test]
+    fn mock_encoder_success_behavior() {
+        let mock = MockEncoder::new_success();
+        assert!(!mock.input_too_large);
+        assert!(!mock.decode_failure);
+        assert!(!mock.encode_failure);
+        assert_eq!(mock.max_input_size(), usize::MAX);
+    }
+
+    #[test]
+    fn mock_encoder_input_too_large_behavior() {
+        let mock = MockEncoder::new_input_too_large();
+        assert!(mock.input_too_large);
+        assert!(!mock.decode_failure);
+        assert!(!mock.encode_failure);
+    }
+
+    #[test]
+    fn mock_encoder_decode_failure_behavior() {
+        let mock = MockEncoder::new_decode_failure();
+        assert!(!mock.input_too_large);
+        assert!(mock.decode_failure);
+        assert!(!mock.encode_failure);
+    }
+
+    #[test]
+    fn mock_encoder_encode_failure_behavior() {
+        let mock = MockEncoder::new_encode_failure();
+        assert!(!mock.input_too_large);
+        assert!(!mock.decode_failure);
+        assert!(mock.encode_failure);
+    }
+
+    #[test]
+    fn roundtrip_encoding_decoding() {
+        let original_data = b"This is a test message for roundtrip encoding/decoding!";
+        let encoded = encode_base64(original_data).unwrap();
+        let decoded = decode_base64(&encoded).unwrap();
+        assert_eq!(decoded, original_data);
+    }
+
+    #[test]
+    fn roundtrip_with_special_characters() {
+        let original_data = b"Special chars: \x00\x01\x02\xFF\xFE\xFD";
+        let encoded = encode_base64(original_data).unwrap();
+        let decoded = decode_base64(&encoded).unwrap();
+        assert_eq!(decoded, original_data);
+    }
+}
